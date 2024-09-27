@@ -58,6 +58,7 @@ int main() {
 
 	int ch;
 	size_t line = 0;
+	size_t command_max = 0;
 
 	String command = {0};
 	Strings command_his = {0};
@@ -70,31 +71,48 @@ int main() {
 			case ctrl('q'):
 				QUIT = true;
 				break;
-			case KEY_ENTER:
-			case 10:
+			case KEY_ENTER: 
+				break;
+			case ENTER:
 				line++;
+				if(command.count == 5 && strcmp(command.data, "clear") == 0) {
+					clear();
+					line = 0;
+					move(line, sizeof(SHELL) - 1);
+					refresh();
+					command = (String){0};
+					break;
+				}
 				mvprintw(line, 0, "`%.*s` is not recognized as an internal or external command", (int)command.count, command.data);
 				line++;
 				DA_APPEND(&command_his, command);
+				if(command_his.count > command_max) command_max = command_his.count;
 				command = (String){0};
 				break;
 			case UP_ARROW:
 				if(command_his.count != 0) {
-					command.count--;
-					command = command_his.data[command.count];
+					move(line, sizeof(SHELL) - 1);
+					clrtoeol();
+					command_his.count--;
+					command = command_his.data[command_his.count];
 				}
 				break;
 			case DOWN_ARROW:
-				command.count++;
-				command = command_his.data[command.count];
+				if(command_his.count < command_max) {
+					move(line, sizeof(SHELL) - 1);
+					clrtoeol();
+
+					command_his.count++;
+					command = command_his.data[command_his.count];
+				}
 				break;
 			default:
 				DA_APPEND(&command, ch);
 				break;
 		}
+		refresh();
 	}
 
-	refresh();
 	endwin();
 
 	for (size_t i = 0; i < command_his.count; i++) {
