@@ -7,6 +7,8 @@
 #define ctrl(x) ((x) & 0x1f)
 #define SHELL "[ubash]$ "
 #define ENTER 10
+#define DOWN_ARROW 258
+#define UP_ARROW 259
 
 #define DATA_START_CAPACITY 128
 
@@ -50,6 +52,7 @@ int main() {
 	initscr();
 	raw();
 	noecho();
+	keypad(stdscr, TRUE);
 
 	bool QUIT = false;
 
@@ -74,6 +77,16 @@ int main() {
 				line++;
 				DA_APPEND(&command_his, command);
 				command = (String){0};
+				break;
+			case UP_ARROW:
+				if(command_his.count != 0) {
+					command.count--;
+					command = command_his.data[command.count];
+				}
+				break;
+			case DOWN_ARROW:
+				command.count++;
+				command = command_his.data[command.count];
 				break;
 			default:
 				DA_APPEND(&command, ch);
