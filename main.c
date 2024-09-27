@@ -70,6 +70,8 @@ int main() {
 			case KEY_ENTER:
 			case 10:
 				line++;
+				mvprintw(line, 0, "`%.*s` is not recognized as an internal or external command", (int)command.count, command.data);
+				line++;
 				DA_APPEND(&command_his, command);
 				command = (String){0};
 				break;
