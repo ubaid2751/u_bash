@@ -3,6 +3,9 @@
 #include<stdbool.h>
 #include<string.h>
 #include<ncurses.h>
+#include<unistd.h>
+#include<errno.h>
+#include<sys/wait.h>
 
 #define ctrl(x) ((x) & 0x1f)
 #define SHELL "[ubash]$ "
@@ -40,7 +43,7 @@
     (clear(), (*(line) = 0), move(*(line), 0), refresh(), (command) = (String){0}, true) : false)
 
 #define CHECK_EXIT(command, line) \
-	((command.count == 4 && strncmp((command).data, "exit", 4) == 0) ? true : false)
+	((command.count >= 4 && strncmp((command).data, "exit", 4) == 0) ? true : false)
 
 typedef struct {
 	char *data;
@@ -53,6 +56,56 @@ typedef struct {
 	size_t count;
 	size_t capacity;
 } Strings;
+
+void handle_command(char *file, char **args) {
+	int pid = fork();
+	int status;
+
+	if(pid < 0) {
+		printw("Error %s", strerror(errno));
+		return;
+	}
+	else if(pid == 0) {
+		if(execvp(args[0], args) < 0) {
+			printw("error %s", strerror(errno));
+		}
+	}
+	else {
+		pid_t wpid = waitpid(pid, &status, 0);
+
+		(void)wpid;
+		while(!WIFEXITED(status) && !WIFSIGNALED(status)) {
+			wpid = waitpid(pid, &status, 0);
+		}
+	}
+}
+
+char *str_to_cstr(String command) {
+	
+}
+
+char **parse_command(char *command) {
+	char *cur = strtok(command, " ");
+	size_t args_s = 8;
+	char **args = malloc(sizeof(char*)*args_s);
+	size_t args_cur = 0;
+
+	while(*cur != '\0') {
+		if(args_cur >= args_s) {
+			args_s *= 2;
+			args = realloc(args, sizeof(char*)*args_s);
+		}
+		args[args_cur++] = cur;
+		printf("%s\n", cur);
+		cur = strtok(command, "\0");
+	}
+
+	for (size_t i = 0; i < args_cur; i++) {
+		printf("%s\n", args[i]);
+	}
+	exit(1);
+	return args;
+}
 
 int main() {
 	initscr();
@@ -87,9 +140,9 @@ int main() {
 				if (CHECK_CLEAR(command, &line)) break;
 				if (CHECK_EXIT(command, &line)) QUIT=true;
 
-				mvprintw(line, 0, "`%.*s` is not recognized as an internal or external command", (int)command.count, command.data);
+				char **args = parse_command(str_to_cstr(command));
+				handle_command(args[0], args);
 				line++;
-				
 				DA_APPEND(&command_his, command);
 				if(command_his.count > command_max) command_max = command_his.count;
 				command = (String){0};
