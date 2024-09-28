@@ -35,6 +35,13 @@
     (da)->data[(da)->count++] = (item);                                                \
 } while (0)
 
+#define CHECK_CLEAR(command, line) \
+    ((command.count == 5 && strncmp((command).data, "clear", 5) == 0) ? \
+    (clear(), (*(line) = 0), move(*(line), 0), refresh(), (command) = (String){0}, true) : false)
+
+#define CHECK_EXIT(command, line) \
+	((command.count == 4 && strncmp((command).data, "exit", 4) == 0) ? true : false)
+
 typedef struct {
 	char *data;
 	size_t count;
@@ -46,7 +53,6 @@ typedef struct {
 	size_t count;
 	size_t capacity;
 } Strings;
-
 
 int main() {
 	initscr();
@@ -65,30 +71,30 @@ int main() {
 
 	while(!QUIT) {
 		mvprintw(line, 0, SHELL);
-		mvprintw(line, 0 + sizeof(SHELL)-1, "%.*s", (int)command.count, command.data);
+		mvprintw(line, sizeof(SHELL) - 1, "%.*s", (int)command.count, command.data);
 		ch = getch();
 		switch(ch) {
 			case ctrl('q'):
 				QUIT = true;
 				break;
+
 			case KEY_ENTER: 
 				break;
+
 			case ENTER:
 				line++;
-				if(command.count == 5 && strcmp(command.data, "clear") == 0) {
-					clear();
-					line = 0;
-					move(line, sizeof(SHELL) - 1);
-					refresh();
-					command = (String){0};
-					break;
-				}
+				
+				if (CHECK_CLEAR(command, &line)) break;
+				if (CHECK_EXIT(command, &line)) QUIT=true;
+
 				mvprintw(line, 0, "`%.*s` is not recognized as an internal or external command", (int)command.count, command.data);
 				line++;
+				
 				DA_APPEND(&command_his, command);
 				if(command_his.count > command_max) command_max = command_his.count;
 				command = (String){0};
 				break;
+
 			case UP_ARROW:
 				if(command_his.count != 0) {
 					move(line, sizeof(SHELL) - 1);
@@ -97,6 +103,7 @@ int main() {
 					command = command_his.data[command_his.count];
 				}
 				break;
+
 			case DOWN_ARROW:
 				if(command_his.count < command_max) {
 					move(line, sizeof(SHELL) - 1);
@@ -106,6 +113,7 @@ int main() {
 					command = command_his.data[command_his.count];
 				}
 				break;
+
 			default:
 				DA_APPEND(&command, ch);
 				break;
