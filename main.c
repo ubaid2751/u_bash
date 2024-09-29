@@ -57,6 +57,30 @@ typedef struct {
 	size_t capacity;
 } Strings;
 
+char **parse_command(String command, size_t *length) {
+	size_t capacity = 16;
+	char **args = malloc(sizeof(char*) * capacity);
+    char *token = strtok(command.data, " ");
+
+    while (token != NULL) {
+        args[*length] = token;
+        (*length)++;
+
+        if(*length >= capacity) {
+            capacity *= 2;
+            args = realloc(args, capacity * sizeof(char *));
+        }
+        token = strtok(NULL, " ");
+
+    }
+
+    return args;
+}
+
+void handle_command(char *args, size_t *line) {
+	
+}
+
 int main() {
 	initscr();
 	raw();
@@ -68,6 +92,7 @@ int main() {
 	int ch;
 	size_t line = 0;
 	size_t command_max = 0;
+	size_t length = 0;
 
 	String command = {0};
 	Strings command_his = {0};
@@ -76,6 +101,7 @@ int main() {
 		mvprintw(line, 0, SHELL);
 		mvprintw(line, sizeof(SHELL) - 1, "%.*s", (int)command.count, command.data);
 		ch = getch();
+		length = 0;
 		switch(ch) {
 			case ctrl('q'):
 				QUIT = true;
@@ -88,10 +114,11 @@ int main() {
 				line++;
 				
 				if (CHECK_CLEAR(command, &line)) break;
-				// if (CHECK_EXIT(command, &line)) QUIT=true;
+				if (CHECK_EXIT(command, &line)) QUIT=true;
 
-				// line++;
-				// handle_command(args[0], args);
+				char **args = parse_command(command, &length);
+				handle_command(args, &line);
+
 				DA_APPEND(&command_his, command);
 				if(command_his.count > command_max) command_max = command_his.count;
 				command = (String){0};
