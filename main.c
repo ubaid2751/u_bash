@@ -58,40 +58,31 @@ typedef struct {
 	size_t capacity;
 } Strings;
 
-char **parse_command(String command, size_t *length) {
-	size_t capacity = 16;
-	char **args = malloc(sizeof(char*) * capacity);
-    char *token = strtok(command.data, " ");
+void handle_command(String command) {
+	int pid = fork();
+	int status;
 
-    while (token != NULL) {
-        args[*length] = token;
-        (*length)++;
-
-        if(*length >= capacity) {
-            capacity *= 2;
-            args = realloc(args, capacity * sizeof(char *));
-        }
-        token = strtok(NULL, " ");
-
-    }
-
-    return args;
-}
-
-void handle_command(char **args, size_t *line) {
-	if(args[0] == NULL) {
-		return;
+	if(pid < 0) {
+		printw("Error: %s\n", strerror(errno));
+		endwin();
 	}
-
-	char *main_args = args[0];
-	if (strncmp("cp", main_args, 2) == 0) {
-		// if (sizeof(args) != 3) {
-        	// fprintf(stderr, "Usage: %s <source_file> <destination_file>\n", main_args);
-        	// exit(EXIT_FAILURE);
-    	// }
-		ubash_copy_cmd(args[1], args[2]);
+	else if(!pid) {
+		char *args[] = {command.data, NULL};
+		
+		if(execvp(args[0], args) == -1) {
+			printw("Error: %s\n", strerror(errno));
+			endwin();
+		}
+		exit(0);
 	}
+	else {
+		pid_t wpid = waitpid(pid, &status, 0);
+		(void)wpid;
 
+		while(!WIFEXITED(status) && !WIFSIGNALED(status)) {
+			wpid = waitpid(pid, &status, 0);
+		}
+	}
 }
 
 int main() {
@@ -120,17 +111,12 @@ int main() {
 				QUIT = true;
 				break;
 
-			case KEY_ENTER: 
-				break;
-
 			case ENTER:
 				line++;
 				
+				handle_command(command);
 				if (CHECK_CLEAR(command, &line)) break;
 				if (CHECK_EXIT(command, &line)) QUIT=true;
-
-				char **args = parse_command(command, &length);
-				handle_command(args, &line);
 
 				DA_APPEND(&command_his, command);
 				if(command_his.count > command_max) command_max = command_his.count;
