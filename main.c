@@ -6,6 +6,7 @@
 #include<unistd.h>
 #include<errno.h>
 #include<sys/wait.h>
+#include"file_commands.h"
 
 #define ctrl(x) ((x) & 0x1f)
 #define SHELL "[ubash]$ "
@@ -77,8 +78,20 @@ char **parse_command(String command, size_t *length) {
     return args;
 }
 
-void handle_command(char *args, size_t *line) {
-	
+void handle_command(char **args, size_t *line) {
+	if(args[0] == NULL) {
+		return;
+	}
+
+	char *main_args = args[0];
+	if (strncmp("cp", main_args, 2) == 0) {
+		// if (sizeof(args) != 3) {
+        	// fprintf(stderr, "Usage: %s <source_file> <destination_file>\n", main_args);
+        	// exit(EXIT_FAILURE);
+    	// }
+		ubash_copy_cmd(args[1], args[2]);
+	}
+
 }
 
 int main() {
