@@ -58,20 +58,44 @@ typedef struct {
 	size_t capacity;
 } Strings;
 
-void handle_command(String command) {
+char *str_to_cstr(String str) {
+	char *cstr = malloc(sizeof(char) * str.count + 1);
+	memcpy(cstr, str.data, sizeof(char) * str.count);
+	cstr[str.count] = '\0';
+	return cstr;
+}
+
+char **parse_command(char *command) {
+	char *arg = strtok(command, " ");
+	size_t args_s = 8;
+
+	char **args = malloc(sizeof(char *) * args_s);
+	size_t args_cur = 0;
+	while(arg != NULL) {
+		if(args_cur >= args_s) {
+			args_s *= 2;
+			args = realloc(args, sizeof(char *) * args_s);
+		}
+
+		args[args_cur++] = arg;
+		arg = strtok(NULL, " ");
+	}
+	// args[i] = '\0';
+
+	return args;
+}
+
+void handle_command(char **args) {
 	int pid = fork();
 	int status;
 
 	if(pid < 0) {
 		printw("Error: %s\n", strerror(errno));
-		endwin();
+		return;
 	}
 	else if(!pid) {
-		char *args[] = {command.data, NULL};
-		
-		if(execvp(args[0], args) == -1) {
-			printw("Error: %s\n", strerror(errno));
-			endwin();
+		if(execvp(args[0], args) < 0) {
+			printw("Error: %s", strerror(errno));
 		}
 		exit(0);
 	}
@@ -90,13 +114,13 @@ int main() {
 	raw();
 	noecho();
 	keypad(stdscr, TRUE);
+	scrollok(stdscr, TRUE);
 
 	bool QUIT = false;
 
 	int ch;
 	size_t line = 0;
 	size_t command_max = 0;
-	size_t length = 0;
 
 	String command = {0};
 	Strings command_his = {0};
@@ -105,7 +129,6 @@ int main() {
 		mvprintw(line, 0, SHELL);
 		mvprintw(line, sizeof(SHELL) - 1, "%.*s", (int)command.count, command.data);
 		ch = getch();
-		length = 0;
 		switch(ch) {
 			case ctrl('q'):
 				QUIT = true;
@@ -114,17 +137,26 @@ int main() {
 			case ENTER:
 				line++;
 				
-				handle_command(command);
+				char **args = NULL;
+				if (command.count > 0) {
+					args = parse_command(str_to_cstr(command));
+				}
+
+				mvprintw(line, command.count, "\n\r");
+			
 				if (CHECK_CLEAR(command, &line)) break;
 				if (CHECK_EXIT(command, &line)) QUIT=true;
 
-				DA_APPEND(&command_his, command);
-				if(command_his.count > command_max) command_max = command_his.count;
+				if(args != NULL) {
+					handle_command(args);
+					DA_APPEND(&command_his, command);
+					if(command_his.count > command_max) command_max = command_his.count;
+				}
 				command = (String){0};
 				break;
 
 			case UP_ARROW:
-				if(command_his.count != 0) {
+				if(command_his.count > 0) {
 					move(line, sizeof(SHELL) - 1);
 					clrtoeol();
 
