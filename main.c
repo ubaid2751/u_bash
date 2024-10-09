@@ -5,6 +5,7 @@
 #include<ncurses.h>
 #include<unistd.h>
 #include<errno.h>
+#include<assert.h>
 #include<sys/wait.h>
 #include"file_commands.h"
 
@@ -27,7 +28,7 @@
         } while (0)
 
 #define DA_APPEND(da, item) do {                                                       \
-    if ((da)->count >= (da)->capacity) {                                                 \
+    if ((da)->count >= (da)->capacity) {                                               \
         (da)->capacity = (da)->capacity == 0 ? DATA_START_CAPACITY : (da)->capacity*2; \
         void *new = calloc(((da)->capacity+1), sizeof(*(da)->data));                   \
         ASSERT(new,"outta ram");                                                       \
@@ -66,21 +67,43 @@ char *str_to_cstr(String str) {
 }
 
 char **parse_command(char *command) {
-	char *arg = strtok(command, " ");
+	char *cur = strtok(command, " ");
+	if(cur == NULL) {
+		return NULL;
+	}
 	size_t args_s = 8;
-
-	char **args = malloc(sizeof(char *) * args_s);
+	char **args = malloc(sizeof(char*)*args_s);
+    if (args == NULL) {
+        return NULL;
+    }
 	size_t args_cur = 0;
-	while(arg != NULL) {
-		if(args_cur >= args_s) {
+	while(cur != NULL) {
+		if(args_cur+2 >= args_s) {
 			args_s *= 2;
-			args = realloc(args, sizeof(char *) * args_s);
+			args = realloc(args, sizeof(char*)*args_s);
 		}
 
-		args[args_cur++] = arg;
-		arg = strtok(NULL, " ");
+		while(command[0] != '\0') command++;
+		command++;
+		assert(command);
+		if(command[0] == '\'') {
+			command++;
+			args[args_cur++] = cur;
+			cur = command;
+			args[args_cur++] = cur;
+			while(command[0] != '\'' && command[0] != '\0') command++;
+			if(command[0] == '\0') break;
+			command[0] = '\0';
+			command++;
+			cur = strtok(command, " ");
+			continue;
+		}
+		
+		args[args_cur++] = cur;
+		cur = strtok(NULL, " ");
 	}
-	// args[i] = '\0';
+
+	args[args_cur] = NULL;
 
 	return args;
 }
