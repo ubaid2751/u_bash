@@ -42,9 +42,9 @@
 #define CHECK_CLEAR(command, line) \
     ((command.count == 5 && strncmp((command).data, "clear", 5) == 0) ? \
     (clear(), (*(line) = 0), move(*(line), 0), refresh(), (command) = (String){0}, true) : false)
-
-#define CHECK_EXIT(command, line) \
-	((command.count >= 4 && strncmp((command).data, "exit", 4) == 0) ? true : false)
+// 
+// #define CHECK_EXIT(command, line) \
+	// ((command.count >= 4 && strncmp((command).data, "exit", 4) == 0) ? true : false)
 
 typedef struct {
 	char *data;
@@ -85,45 +85,87 @@ char **parse_command(char *command) {
 	return args;
 }
 
-void handle_command(char **args) {
-	int pid = fork();
-	int status;
-
+void execute_command(char **args, size_t *line) {
 	int filedes[2];
-	char buf[1024] = {0};
+	char buf[4096] = {0};
 	if(pipe(filedes) < 0) {
-		printw("Error: %s\n", strerror(errno));
+		mvprintw(*line, 0, "Error: %s\n", strerror(errno));
 		return;
 	}
 
+	int pid = fork();
+	int status;
 	if(pid < 0) {
-		printw("Error: %s\n", strerror(errno));
+		mvprintw(*line, 0, "Error: %s\n", strerror(errno));
 		return;
 	}
 	else if(!pid) {
 		close(filedes[0]);
 		if(dup2(filedes[1], STDOUT_FILENO) < 0) {
-			printw("Error: %s\n", strerror(errno));
+			printf("Error: %s\n", strerror(errno));
 			return;
 		}
+		close(filedes[1]);
 
 		if(execvp(args[0], args) < 0) {
 			printw("Error: %s", strerror(errno));
 		}
-
-		fflush(stdout);
-		close(filedes[1]);
+		exit(1);
 	}
 	else {
 		close(filedes[1]);
+		
+		int nbytyes = 0;
+		while((nbytyes = read(filedes[0], buf, sizeof(buf) - 1)) != 0) {
+			mvprintw(*line, 0, "%s", buf);
+			for (size_t i = 0; buf[i] != '\0'; i++) {
+				if(buf[i] == '\n') (*line)++;
+			}
+			refresh();
+			memset(buf, 0, sizeof(buf));
+		}
+		
 		pid_t wpid = waitpid(pid, &status, 0);
-		(void)wpid;
-
 		while(!WIFEXITED(status) && !WIFSIGNALED(status)) {
 			wpid = waitpid(pid, &status, 0);
 		}
-		read(filedes[0], buf, sizeof(buf));
-		printw("%s", buf);
+		(void)wpid;
+
+		close(filedes[0]);
+		refresh();
+	}
+}
+
+void handle_command(char **args, size_t *line) {
+	*line += 1;
+
+	if(*args == NULL) {
+		mvprintw(*line, 0, "Error: No command entered\n");
+		return;
+	}
+	if(strcmp(args[0], "exit") == 0) {
+		int exit_code = 0;
+		if(args[1] != NULL) {
+			exit_code = strtol(args[1], NULL, 10);
+		}
+
+		endwin();
+		printf("exit\n");
+		exit(exit_code);
+	}
+	else if(strcmp(args[0], "cd") == 0) {
+		char *dir = "~";
+		if(args[1] != NULL) {
+			dir = args[1];
+		}
+
+		if(chdir(dir) < 0) {
+			mvprintw(*line, 0, "'%s': %s\n", dir, strerror(errno));
+			*line += 1;
+		}
+	}
+	else {
+		execute_command(args, line);
 	}
 }
 
@@ -132,20 +174,27 @@ int main() {
 	raw();
 	noecho();
 	keypad(stdscr, TRUE);
-	scrollok(stdscr, TRUE);
 
 	bool QUIT = false;
 
 	int ch;
 	size_t line = 0;
 	size_t command_max = 0;
+	size_t command_pos = 0;
+
+	size_t height = 0, width = 0;
+	(void)height;
 
 	String command = {0};
 	Strings command_his = {0};
 
 	while(!QUIT) {
+		getmaxyx(stdscr, height, width);
 		mvprintw(line, 0, SHELL);
 		mvprintw(line, sizeof(SHELL) - 1, "%.*s", (int)command.count, command.data);
+		
+		// move(line, sizeof(SHELL) - 1 + command_pos);
+
 		ch = getch();
 		switch(ch) {
 			case ctrl('q'):
@@ -163,14 +212,23 @@ int main() {
 				mvprintw(line, command.count, "\n\r");
 			
 				if (CHECK_CLEAR(command, &line)) break;
-				if (CHECK_EXIT(command, &line)) QUIT=true;
+				// if (CHECK_EXIT(command, &line)) QUIT=true;
 
 				if(args != NULL) {
-					handle_command(args);
+					handle_command(args, &line);
 					DA_APPEND(&command_his, command);
 					if(command_his.count > command_max) command_max = command_his.count;
 				}
 				command = (String){0};
+				command_pos = 0;
+				break;
+			
+			case KEY_BACKSPACE:
+				if(command.count > 0) {
+					command.count--;
+					move(line, sizeof(SHELL) - 1 + command.count);
+					clrtoeol();
+				}
 				break;
 
 			case UP_ARROW:
